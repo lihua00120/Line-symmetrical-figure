@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>線對稱圖形互動學習</title>
+    <!-- 載入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 載入 React -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- 載入 Babel 以便在瀏覽器中編譯 JSX -->
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <style>
+        body { font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; background-color: #f3f4f6; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // 任務一的形狀定義
+        const SHAPES = [
+            { id: 'heart', name: '愛心', type: 'path', data: 'M 200 100 C 200 100 170 50 120 50 C 60 50 40 110 40 150 C 40 220 120 280 200 330 C 280 280 360 220 360 150 C 360 110 340 50 280 50 C 230 50 200 100 200 100 Z', correctAngles: [0, 180, 360] },
+            { id: 'isoTriangle', name: '等腰三角形', type: 'path', data: 'M 200 60 L 320 280 L 80 280 Z', correctAngles: [0, 180, 360] },
+            { id: 'eqTriangle', name: '正三角形', type: 'path', data: 'M 200 60 L 321.24 270 L 78.76 270 Z', correctAngles: [0, 60, 120, 180, 240, 300, 360] },
+            { id: 'rhombus', name: '菱形', type: 'path', data: 'M 200 60 L 320 200 L 200 340 L 80 200 Z', correctAngles: [0, 90, 180, 270, 360] },
+            { id: 'trapezoid', name: '等腰梯形', type: 'path', data: 'M 140 100 L 260 100 L 320 260 L 80 260 Z', correctAngles: [0, 180, 360] },
+            { id: 'square', name: '正方形', type: 'path', data: 'M 100 100 L 300 100 L 300 300 L 100 300 Z', correctAngles: [0, 45, 90, 135, 180, 225, 270, 315, 360] },
+            { id: 'rectangle', name: '長方形', type: 'path', data: 'M 80 120 L 320 120 L 320 280 L 80 280 Z', correctAngles: [0, 90, 180, 270, 360] },
+            { id: 'circle', name: '圓形', type: 'circle', cx: 200, cy: 200, r: 120, correctAngles: 'all' },
+            { id: 'parallelogram', name: '平行四邊形', type: 'path', data: 'M 120 100 L 320 100 L 280 260 L 80 260 Z', correctAngles: [] } // 沒有對稱軸
+        ];
+
+        function SymmetryApp() {
+            const [currentTask, setCurrentTask] = useState(1);
+            
+            // Task 1 States
+            const [shapeIndex, setShapeIndex] = useState(0);
+            const [angle, setAngle] = useState(45);
+            const [isFolded, setIsFolded] = useState(false);
+            const [t1Feedback, setT1Feedback] = useState('');
+            const currentShape = SHAPES[shapeIndex];
+
+            // Task 2 States
+            const [axisDir, setAxisDir] = useState('vertical'); // 'vertical' or 'horizontal'
+            const [mode, setMode] = useState('points'); // 'points' or 'edges'
+            const [selectedA, setSelectedA] = useState(null);
+            const [selectedB, setSelectedB] = useState(null);
+            const [t2Feedback, setT2Feedback] = useState('');
+            const [showT2Fold, setShowT2Fold] = useState(false);
+
+            // Task 1 Handlers
+            const handleFoldT1 = () => {
+                if (currentShape.correctAngles === 'all' || currentShape.correctAngles.includes(angle)) {
+                    setT1Feedback('答對了！這是一條正確的對稱軸，兩邊完全重合！');
+                    setIsFolded(true);
+                } else {
+                    setT1Feedback('角度好像不太對喔？對摺後兩邊無法完全重合，請再調整看看！');
+                    setIsFolded(true);
+                    setTimeout(() => setIsFolded(false), 2500);
+                }
+            };
+
+            const handleNoAxis = () => {
+                if (currentShape.correctAngles.length === 0) {
+                    setT1Feedback('非常棒！平行四邊形確實「沒有」線對稱軸！');
+                } else {
+                    setT1Feedback('再仔細看看喔！這個圖形其實是有對稱軸的！');
+                }
+            };
+
+            // Task 2 Logic
+            const getT2Layout = () => {
+                if (axisDir === 'vertical') {
+                    return {
+                        points: [
+                            { id: 'A', x: 80, y: 100, pair: 'D' }, { id: 'B', x: 200, y: 100, pair: 'B' }, { id: 'D', x: 320, y: 100, pair: 'A' },
+                            { id: 'E', x: 320, y: 300, pair: 'G' }, { id: 'F', x: 200, y: 300, pair: 'F' }, { id: 'G', x: 80, y: 300, pair: 'E' }
+                        ],
+                        edges: [
+                            { id: 'AB', p1: {x:80,y:100}, p2: {x:200,y:100}, pair: 'BD' },
+                            { id: 'BD', p1: {x:200,y:100}, p2: {x:320,y:100}, pair: 'AB' },
+                            { id: 'DE', p1: {x:320,y:100}, p2: {x:320,y:300}, pair: 'GA' },
+                            { id: 'EF', p1: {x:320,y:300}, p2: {x:200,y:300}, pair: 'FG' },
+                            { id: 'FG', p1: {x:200,y:300}, p2: {x:80,y:300}, pair: 'EF' },
+                            { id: 'GA', p1: {x:80,y:300}, p2: {x:80,y:100}, pair: 'DE' }
+                        ],
+                        path: 'M 80 100 L 320 100 L 320 300 L 80 300 Z'
+                    };
+                } else {
+                    return {
+                        points: [
+                            { id: 'A', x: 100, y: 80, pair: 'F' }, { id: 'B', x: 300, y: 80, pair: 'E' },
+                            { id: 'C', x: 300, y: 200, pair: 'C' },
+                            { id: 'E', x: 300, y: 320, pair: 'B' }, { id: 'F', x: 100, y: 320, pair: 'A' },
+                            { id: 'H', x: 100, y: 200, pair: 'H' }
+                        ],
+                        edges: [
+                            { id: 'AB', p1: {x:100,y:80}, p2: {x:300,y:80}, pair: 'EF' },
+                            { id: 'BC', p1: {x:300,y:80}, p2: {x:300,y:200}, pair: 'CE' },
+                            { id: 'CE', p1: {x:300,y:200}, p2: {x:300,y:320}, pair: 'BC' },
+                            { id: 'EF', p1: {x:300,y:320}, p2: {x:100,y:320}, pair: 'AB' },
+                            { id: 'FH', p1: {x:100,y:320}, p2: {x:100,y:200}, pair: 'HA' },
+                            { id: 'HA', p1: {x:100,y:200}, p2: {x:100,y:80}, pair: 'FH' }
+                        ],
+                        path: 'M 100 80 L 300 80 L 300 320 L 100 320 Z'
+                    };
+                }
+            };
+            const layout = getT2Layout();
+
+            const handleT2Select = (id, pairId) => {
+                if (id === pairId) {
+                    setT2Feedback('這個位置剛好在對稱軸上，它的對稱點/對應邊就是自己喔！');
+                    setSelectedA(null); setSelectedB(null);
+                    return;
+                }
+                if (!selectedA) {
+                    setSelectedA(id);
+                    setT2Feedback('請選擇它的對稱點 / 對應邊。');
+                } else if (!selectedB) {
+                    setSelectedB(id);
+                    if (id === layout[mode].find(i => i.id === selectedA).pair) {
+                        setT2Feedback('答對了！我們來看看對摺後是不是疊在一起！');
+                        setShowT2Fold(true);
+                        setTimeout(() => {
+                            setShowT2Fold(false);
+                            setSelectedA(null);
+                            setSelectedB(null);
+                            setT2Feedback('請點選一個點 / 邊來開始尋找對稱。');
+                        }, 4000);
+                    } else {
+                        setT2Feedback('不對喔，這兩個不是對稱的，請再試一次！');
+                        setTimeout(() => {
+                            setSelectedA(null);
+                            setSelectedB(null);
+                            setT2Feedback('請點選一個點 / 邊來開始尋找對稱。');
+                        }, 2000);
+                    }
+                }
+            };
+
+            useEffect(() => {
+                setSelectedA(null); setSelectedB(null); setShowT2Fold(false); setT2Feedback('請點選一個點 / 邊來開始尋找對稱。');
+            }, [axisDir, mode]);
+
+            return (
+                <div className="max-w-4xl mx-auto p-4 font-sans text-gray-800">
+                    <h1 className="text-3xl font-bold text-center mb-6 text-blue-700">線對稱圖形互動學習</h1>
+                    
+                    <div className="flex justify-center gap-4 mb-8">
+                        <button onClick={() => {setCurrentTask(1); setIsFolded(false); setT1Feedback('');}} 
+                                className={`px-6 py-3 rounded-full font-bold text-lg transition-colors ${currentTask === 1 ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-600 border border-gray-300'}`}>
+                            任務一：尋找對稱軸
+                        </button>
+                        <button onClick={() => {setCurrentTask(2);}} 
+                                className={`px-6 py-3 rounded-full font-bold text-lg transition-colors ${currentTask === 2 ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-gray-600 border border-gray-300'}`}>
+                            任務二：對應點與對應邊
+                        </button>
+                    </div>
+
+                    {currentTask === 1 && (
+                        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-8 border-pink-400">
+                            {t1Feedback && (
+                                <div className={`p-4 rounded-xl mb-6 text-center font-bold text-lg ${t1Feedback.includes('答對') || t1Feedback.includes('非常棒') ? 'bg-green-100 text-green-700' : 'bg-pink-100 text-pink-700'}`}>
+                                    {t1Feedback}
+                                </div>
+                            )}
+
+                            <div className="flex flex-wrap justify-center gap-2 mb-6">
+                                {SHAPES.map((shape, idx) => (
+                                    <button key={shape.id} onClick={() => { setShapeIndex(idx); setAngle(45); setIsFolded(false); setT1Feedback(''); }}
+                                            className={`px-4 py-2 rounded-lg font-medium transition ${shapeIndex === idx ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-pink-100'}`}>
+                                        {shape.name}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="flex flex-col items-center gap-6">
+                                <div className="flex items-center gap-4 bg-gray-50 px-6 py-3 rounded-2xl shadow-inner w-full max-w-md">
+                                    <span className="font-bold text-gray-600 whitespace-nowrap">角度: {angle}°</span>
+                                    <input type="range" min="0" max="360" step="5" value={angle} onChange={(e) => {setAngle(parseInt(e.target.value)); setIsFolded(false);}}
+                                           className="w-full h-3 bg-pink-200 rounded-lg appearance-none cursor-pointer accent-pink-600" disabled={isFolded} />
+                                </div>
+
+                                <div className="flex gap-4">
+                                    <button onClick={handleFoldT1} disabled={isFolded} className="px-8 py-3 bg-pink-500 text-white font-bold rounded-full hover:bg-pink-600 disabled:opacity-50 transition shadow-md">
+                                        對摺看看！
+                                    </button>
+                                    <button onClick={handleNoAxis} disabled={isFolded} className="px-6 py-3 bg-gray-500 text-white font-bold rounded-full hover:bg-gray-600 disabled:opacity-50 transition shadow-md">
+                                        找不到對稱軸
+                                    </button>
+                                </div>
+
+                                <div className="relative w-[400px] h-[400px] bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300 overflow-hidden" style={{ perspective: '1000px' }}>
+                                    {/* 裁切遮罩定義 */}
+                                    <svg width="0" height="0">
+                                        <defs>
+                                            <clipPath id="rightHalf"><rect x="200" y="-100" width="400" height="600" /></clipPath>
+                                            <clipPath id="leftHalf"><rect x="-200" y="-100" width="400" height="600" /></clipPath>
+                                        </defs>
+                                    </svg>
+
+                                    <div className="absolute inset-0 transition-transform duration-700 ease-in-out" style={{ transform: `rotate(${angle}deg)` }}>
+                                        {/* 右半邊 (固定不動) */}
+                                        <div className="absolute inset-0" style={{ clipPath: 'url(#rightHalf)' }}>
+                                            <svg className="w-full h-full" style={{ transform: `rotate(${-angle}deg)` }}>
+                                                {currentShape.type === 'path' ? 
+                                                    <path d={currentShape.data} fill="#f472b6" stroke="#be185d" strokeWidth="4" /> : 
+                                                    <circle cx={currentShape.cx} cy={currentShape.cy} r={currentShape.r} fill="#f472b6" stroke="#be185d" strokeWidth="4" />}
+                                            </svg>
+                                        </div>
+
+                                        {/* 左半邊 (執行 3D 翻轉) */}
+                                        <div className="absolute inset-0 origin-[200px_200px] transition-transform duration-1000 ease-in-out"
+                                             style={{ clipPath: 'url(#leftHalf)', transform: isFolded ? 'rotateY(180deg)' : 'rotateY(0deg)', backfaceVisibility: 'hidden' }}>
+                                            <svg className="w-full h-full" style={{ transform: `rotate(${-angle}deg)` }}>
+                                                {currentShape.type === 'path' ? 
+                                                    <path d={currentShape.data} fill="#f472b6" stroke="#be185d" strokeWidth="4" /> : 
+                                                    <circle cx={currentShape.cx} cy={currentShape.cy} r={currentShape.r} fill="#f472b6" stroke="#be185d" strokeWidth="4" />}
+                                            </svg>
+                                        </div>
+                                    </div>
+
+                                    {/* 對稱軸 (虛線) */}
+                                    <div className="absolute top-0 left-[198px] w-[4px] h-full bg-red-500 transition-transform duration-500"
+                                         style={{ transform: `rotate(${angle}deg)`, borderStyle: 'dashed', backgroundColor: 'transparent', backgroundImage: 'linear-gradient(to bottom, #ef4444 50%, transparent 50%)', backgroundSize: '100% 20px' }}>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {currentTask === 2 && (
+                        <div className="bg-white rounded-2xl shadow-xl p-8 border-t-8 border-blue-400">
+                            <div className="flex justify-between items-center mb-6">
+                                <button onClick={() => setAxisDir(d => d === 'vertical' ? 'horizontal' : 'vertical')} className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 font-bold rounded-lg hover:bg-blue-200 transition">
+                                    🔄 切換對稱軸方向
+                                </button>
+                                <div className="flex bg-gray-100 p-1 rounded-lg">
+                                    <button onClick={() => setMode('points')} className={`px-4 py-2 rounded-md font-bold transition ${mode === 'points' ? 'bg-white shadow text-blue-700' : 'text-gray-500'}`}>找對稱點</button>
+                                    <button onClick={() => setMode('edges')} className={`px-4 py-2 rounded-md font-bold transition ${mode === 'edges' ? 'bg-white shadow text-blue-700' : 'text-gray-500'}`}>找對稱邊</button>
+                                </div>
+                            </div>
+
+                            <div className="p-4 rounded-xl mb-6 text-center font-bold text-lg bg-blue-50 text-blue-800 border border-blue-200">
+                                {t2Feedback}
+                            </div>
+
+                            <div className="flex justify-center">
+                                <div className="relative w-[400px] h-[400px] bg-gray-50 rounded-2xl border-2 border-gray-200" style={{ perspective: '1000px' }}>
+                                    {/* SVG 繪圖層 (含 3D 動畫) */}
+                                    <div className={`absolute inset-0 origin-center transition-transform duration-1000 ease-in-out ${showT2Fold ? (axisDir === 'vertical' ? 'rotateY(180deg)' : 'rotateX(-180deg)') : ''}`} style={{ transformStyle: 'preserve-3d' }}>
+                                        <svg width="400" height="400" className="absolute inset-0">
+                                            {/* 圖形底色與邊線 */}
+                                            <path d={layout.path} fill="#bfdbfe" stroke="#60a5fa" strokeWidth="6" strokeLinejoin="round" />
+                                            {/* 高亮顯示選中的邊 */}
+                                            {mode === 'edges' && layout.edges.map(edge => {
+                                                const isSel = selectedA === edge.id || selectedB === edge.id;
+                                                return isSel ? <line key={`hl-${edge.id}`} x1={edge.p1.x} y1={edge.p1.y} x2={edge.p2.x} y2={edge.p2.y} stroke="#f59e0b" strokeWidth="12" strokeLinecap="round" /> : null;
+                                            })}
+                                            {/* 畫點 */}
+                                            {mode === 'points' && layout.points.map(pt => {
+                                                const isSel = selectedA === pt.id || selectedB === pt.id;
+                                                return <circle key={`pt-${pt.id}`} cx={pt.x} cy={pt.y} r="14" fill={isSel ? "#f59e0b" : "#ffffff"} stroke={isSel ? "#b45309" : "#4b5563"} strokeWidth="4" />;
+                                            })}
+                                        </svg>
+                                    </div>
+
+                                    {/* 互動透明層 (永遠在最上層，不參與翻轉) */}
+                                    <svg width="400" height="400" className="absolute inset-0 z-10 pointer-events-none">
+                                        {/* 對稱軸 */}
+                                        {axisDir === 'vertical' 
+                                            ? <line x1="200" y1="20" x2="200" y2="380" stroke="#ef4444" strokeWidth="4" strokeDasharray="10 10" />
+                                            : <line x1="20" y1="200" x2="380" y2="200" stroke="#ef4444" strokeWidth="4" strokeDasharray="10 10" />
+                                        }
+
+                                        {/* 邊線的隱形點擊區與文字 */}
+                                        {mode === 'edges' && layout.edges.map(edge => {
+                                            const midX = (edge.p1.x + edge.p2.x) / 2;
+                                            const midY = (edge.p1.y + edge.p2.y) / 2;
+                                            const offsetX = edge.p1.x === edge.p2.x ? (edge.p1.x > 200 ? 30 : -30) : 0;
+                                            const offsetY = edge.p1.y === edge.p2.y ? (edge.p1.y > 200 ? 30 : -30) : 0;
+                                            return (
+                                                <g key={`hit-${edge.id}`} className="pointer-events-auto cursor-pointer" onClick={() => handleT2Select(edge.id, edge.pair)}>
+                                                    <line x1={edge.p1.x} y1={edge.p1.y} x2={edge.p2.x} y2={edge.p2.y} stroke="transparent" strokeWidth="30" />
+                                                    <text x={midX + offsetX} y={midY + offsetY} textAnchor="middle" dominantBaseline="middle" fill="#374151" fontSize="18" fontWeight="bold" className="pointer-events-none">{edge.id}邊</text>
+                                                </g>
+                                            );
+                                        })}
+
+                                        {/* 點的隱形點擊區與文字 */}
+                                        {mode === 'points' && layout.points.map(pt => {
+                                            const offsetX = pt.x === 200 ? 0 : (pt.x > 200 ? 30 : -30);
+                                            const offsetY = pt.y === 200 ? (pt.x === 200 ? -30 : 0) : (pt.y > 200 ? 30 : -30);
+                                            return (
+                                                <g key={`hit-${pt.id}`} className="pointer-events-auto cursor-pointer" onClick={() => handleT2Select(pt.id, pt.pair)}>
+                                                    <circle cx={pt.x} cy={pt.y} r="25" fill="transparent" />
+                                                    <text x={pt.x + offsetX} y={pt.y + offsetY} textAnchor="middle" dominantBaseline="middle" fill="#374151" fontSize="22" fontWeight="bold" className="pointer-events-none">{pt.id}</text>
+                                                </g>
+                                            );
+                                        })}
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<SymmetryApp />);
+    </script>
+</body>
+</html>
